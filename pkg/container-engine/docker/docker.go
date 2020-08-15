@@ -22,6 +22,7 @@ import (
 	kubekeyapi "github.com/kubesphere/kubekey/pkg/apis/kubekey/v1alpha1"
 	"github.com/kubesphere/kubekey/pkg/util"
 	"github.com/kubesphere/kubekey/pkg/util/manager"
+	"github.com/kubesphere/kubekey/pkg/util/ssh"
 	"github.com/lithammer/dedent"
 	"github.com/pkg/errors"
 	"strings"
@@ -74,7 +75,7 @@ func InstallerDocker(mgr *manager.Manager) error {
 	return mgr.RunTaskOnAllNodes(installDockerOnNode, true)
 }
 
-func installDockerOnNode(mgr *manager.Manager, _ *kubekeyapi.HostCfg) error {
+func installDockerOnNode(mgr *manager.Manager, _ *kubekeyapi.HostCfg, _ ssh.Connection) error {
 	dockerConfig, err := GenerateDockerConfig(mgr)
 	if err != nil {
 		return err

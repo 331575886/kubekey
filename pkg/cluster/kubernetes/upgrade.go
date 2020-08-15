@@ -1,16 +1,15 @@
-package upgrade
+package kubernetes
 
 import (
 	"encoding/base64"
 	"fmt"
 	kubekeyapi "github.com/kubesphere/kubekey/pkg/apis/kubekey/v1alpha1"
-	"github.com/kubesphere/kubekey/pkg/cluster/kubernetes"
 	"github.com/kubesphere/kubekey/pkg/cluster/kubernetes/tmpl"
 	"github.com/kubesphere/kubekey/pkg/cluster/preinstall"
 	"github.com/kubesphere/kubekey/pkg/files"
-	"github.com/kubesphere/kubekey/pkg/plugins/dns"
 	"github.com/kubesphere/kubekey/pkg/util"
 	"github.com/kubesphere/kubekey/pkg/util/manager"
+	"github.com/kubesphere/kubekey/pkg/util/ssh"
 	"github.com/pkg/errors"
 	versionutil "k8s.io/apimachinery/pkg/util/version"
 	"os"
@@ -18,7 +17,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 )
 
 var (
@@ -33,7 +31,7 @@ func GetCurrentVersions(mgr *manager.Manager) error {
 	return mgr.RunTaskOnK8sNodes(getCurrentVersion, true)
 }
 
-func getCurrentVersion(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
+func getCurrentVersion(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.Connection) error {
 	kubeletVersionInfo, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"/usr/local/bin/kubelet --version\"", 3, false)
 	if err != nil {
 		return errors.Wrap(err, "Failed to get current kubelet version")
@@ -96,32 +94,15 @@ func getMinVersion(versionsMap map[string]string) (string, error) {
 }
 
 func upgradeKubeMasters(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
-	kubeletVersion, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"/usr/local/bin/kubelet --version\"", 3, false)
+	kubeletVersion, err := mgr.Runner.ExecuteCmd("/usr/local/bin/kubelet --version", 3, false)
 	if err != nil {
 		return errors.Wrap(err, "Failed to get current kubelet version")
 	}
-	kubeApiserverVersion, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep 'image:' | cut -d ':' -f 3\"", 3, false)
-	if err != nil {
-		return errors.Wrap(err, "Failed to get current kubelet version")
-	}
-	if strings.Split(kubeletVersion, " ")[1] != mgr.Cluster.Kubernetes.Version || strings.TrimSpace(kubeApiserverVersion) != mgr.Cluster.Kubernetes.Version {
-		if _, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"systemctl stop kubelet\"", 2, true); err != nil {
+	if strings.Split(kubeletVersion, " ")[1] != mgr.Cluster.Kubernetes.Version {
+		if err := SyncKubeBinaries(mgr, node); err != nil {
 			return err
 		}
 
-		if err := kubernetes.SyncKubeBinaries(mgr, node); err != nil {
-			return err
-		}
-
-		if err := kubernetes.SetKubelet(mgr, node); err != nil {
-			return err
-		}
-
-		if _, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"systemctl daemon-reload && systemctl restart kubelet\"", 2, true); err != nil {
-			return err
-		}
-
-		time.Sleep(30 * time.Second)
 		var kubeadmCfgBase64 string
 		if util.IsExist(fmt.Sprintf("%s/kubeadm-config.yaml", mgr.WorkDir)) {
 			output, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("cat %s/kubeadm-config.yaml | base64 --wrap=0", mgr.WorkDir)).CombinedOutput()
@@ -143,33 +124,24 @@ func upgradeKubeMasters(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
 			return errors.Wrap(errors.WithStack(err1), "Failed to generate kubeadm config")
 		}
 
-		for i := 0; i < 2; i++ {
-			if _, err := mgr.Runner.ExecuteCmd(fmt.Sprintf(
-				"sudo -E /bin/sh -c \"timeout -k 600s 600s /usr/local/bin/kubeadm upgrade apply -y %s --config=/etc/kubernetes/kubeadm-config.yaml "+
-					"--ignore-preflight-errors=all --allow-experimental-upgrades --allow-release-candidate-upgrades --etcd-upgrade=false --certificate-renewal=true --force\"",
-				mgr.Cluster.Kubernetes.Version),
-				0, false); err != nil {
-				if i == 1 {
-					return errors.Wrap(errors.WithStack(err), fmt.Sprintf("Failed to upgrade master: %s", node.Name))
-				}
-
-				if _, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"systemctl daemon-reload && systemctl restart kubelet\"", 2, true); err != nil {
-					return err
-				}
-				time.Sleep(30 * time.Second)
-
-			} else {
-				break
-			}
+		_, err2 := mgr.Runner.ExecuteCmd(fmt.Sprintf(
+			"sudo -E /bin/sh -c \"/usr/local/bin/kubeadm upgrade apply -y %s --config=/etc/kubernetes/kubeadm-config.yaml "+
+				"--ignore-preflight-errors=all --allow-experimental-upgrades --allow-release-candidate-upgrades --etcd-upgrade=false --certificate-renewal=true --force\"",
+			mgr.Cluster.Kubernetes.Version),
+			3, false)
+		if err2 != nil {
+			return errors.Wrap(errors.WithStack(err2), fmt.Sprintf("Failed to upgrade master: %s", node.Name))
 		}
 
-	}
+		if err := SetKubelet(mgr, node); err != nil {
+			return err
+		}
 
-	if mgr.Runner.Index == 0 {
-		if err := dns.CreateClusterDns(mgr); err != nil {
+		if _, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"systemctl daemon-reload && systemctl restart kubelet\"", 2, true); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -180,11 +152,11 @@ func upgradeKubeWorkers(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
 	}
 	if strings.Split(kubeletVersion, " ")[1] != mgr.Cluster.Kubernetes.Version {
 
-		if err := kubernetes.SyncKubeBinaries(mgr, node); err != nil {
+		if err := SyncKubeBinaries(mgr, node); err != nil {
 			return err
 		}
 
-		if err := kubernetes.SetKubelet(mgr, node); err != nil {
+		if err := SetKubelet(mgr, node); err != nil {
 			return err
 		}
 
@@ -265,7 +237,7 @@ Loop:
 
 }
 
-func upgradeCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
+func upgradeCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.Connection) error {
 	if node.IsMaster {
 		if err := upgradeKubeMasters(mgr, node); err != nil {
 			return err

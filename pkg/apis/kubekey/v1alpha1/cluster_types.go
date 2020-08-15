@@ -89,6 +89,7 @@ type HostCfg struct {
 	IsEtcd          bool   `json:"-"`
 	IsMaster        bool   `json:"-"`
 	IsWorker        bool   `json:"-"`
+	IsClient        bool   `json:"-"`
 }
 
 type RoleGroups struct {
@@ -119,9 +120,8 @@ type RegistryConfig struct {
 }
 
 type KubeSphere struct {
-	Enabled        bool
-	Version        string
-	Configurations string
+	Enabled bool
+	Version string
 }
 
 type ExternalEtcd struct {

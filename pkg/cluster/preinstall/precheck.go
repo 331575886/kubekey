@@ -5,6 +5,7 @@ import (
 	"fmt"
 	kubekeyapi "github.com/kubesphere/kubekey/pkg/apis/kubekey/v1alpha1"
 	"github.com/kubesphere/kubekey/pkg/util/manager"
+	"github.com/kubesphere/kubekey/pkg/util/ssh"
 	"github.com/mitchellh/mapstructure"
 	"github.com/modood/table"
 	"os"
@@ -42,7 +43,7 @@ func Precheck(mgr *manager.Manager) error {
 	return nil
 }
 
-func precheck(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
+func precheck(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.Connection) error {
 	var results = make(map[string]interface{})
 	results["name"] = node.Name
 	for _, software := range baseSoftwares {

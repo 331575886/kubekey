@@ -24,6 +24,7 @@ import (
 	"github.com/kubesphere/kubekey/pkg/plugins/dns"
 	"github.com/kubesphere/kubekey/pkg/util"
 	"github.com/kubesphere/kubekey/pkg/util/manager"
+	"github.com/kubesphere/kubekey/pkg/util/ssh"
 	"github.com/pkg/errors"
 	"os"
 	"os/exec"
@@ -49,7 +50,7 @@ func GetClusterStatus(mgr *manager.Manager) error {
 	return mgr.RunTaskOnMasterNodes(getClusterStatus, false)
 }
 
-func getClusterStatus(mgr *manager.Manager, _ *kubekeyapi.HostCfg) error {
+func getClusterStatus(mgr *manager.Manager, _ *kubekeyapi.HostCfg, _ ssh.Connection) error {
 	if clusterStatus["clusterInfo"] == "" {
 		output, err := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"[ -f /etc/kubernetes/admin.conf ] && echo 'Cluster already exists.' || echo 'Cluster will be created.'\"", 0, true)
 		if strings.Contains(output, "Cluster will be created") {
@@ -82,7 +83,7 @@ func InitKubernetesCluster(mgr *manager.Manager) error {
 	return mgr.RunTaskOnMasterNodes(initKubernetesCluster, true)
 }
 
-func initKubernetesCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
+func initKubernetesCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.Connection) error {
 	if mgr.Runner.Index == 0 && !clusterIsExist {
 
 		var kubeadmCfgBase64 string
@@ -106,19 +107,10 @@ func initKubernetesCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg) error
 			return errors.Wrap(errors.WithStack(err1), "Failed to generate kubeadm config")
 		}
 
-		for i := 0; i < 3; i++ {
-			_, err2 := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"/usr/local/bin/kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml\"", 0, true)
-			if err2 != nil {
-				if i == 2 {
-					return errors.Wrap(errors.WithStack(err2), "Failed to init kubernetes cluster")
-				} else {
-					_, _ = mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"/usr/local/bin/kubeadm reset -f\"", 0, true)
-				}
-			} else {
-				break
-			}
+		_, err2 := mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"/usr/local/bin/kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml\"", 3, true)
+		if err2 != nil {
+			return errors.Wrap(errors.WithStack(err2), "Failed to init kubernetes cluster")
 		}
-
 		if err3 := GetKubeConfig(mgr); err3 != nil {
 			return err3
 		}
@@ -128,7 +120,10 @@ func initKubernetesCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg) error
 		if err := addWorkerLabel(mgr, node); err != nil {
 			return err
 		}
-		if err := dns.CreateClusterDns(mgr); err != nil {
+		if err := dns.OverrideCorednsService(mgr); err != nil {
+			return err
+		}
+		if err := dns.DeployNodelocaldns(mgr); err != nil {
 			return err
 		}
 		clusterIsExist = true
@@ -246,7 +241,7 @@ func JoinNodesToCluster(mgr *manager.Manager) error {
 	return mgr.RunTaskOnK8sNodes(joinNodesToCluster, true)
 }
 
-func joinNodesToCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
+func joinNodesToCluster(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.Connection) error {
 	if !strings.Contains(clusterStatus["clusterInfo"], node.Name) && !strings.Contains(clusterStatus["clusterInfo"], node.InternalAddress) {
 		if node.IsMaster {
 			err := addMaster(mgr)

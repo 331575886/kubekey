@@ -33,7 +33,7 @@ const (
 )
 
 // NodeTask is a task that is specifically tailored to run on a single node.
-type NodeTask func(mgr *Manager, node *kubekeyapi.HostCfg) error
+type NodeTask func(mgr *Manager, node *kubekeyapi.HostCfg, conn ssh.Connection) error
 
 func (mgr *Manager) runTask(node *kubekeyapi.HostCfg, task NodeTask, index int) error {
 	var (
@@ -53,7 +53,7 @@ func (mgr *Manager) runTask(node *kubekeyapi.HostCfg, task NodeTask, index int) 
 		Index: index,
 	}
 
-	return task(mgr, node)
+	return task(mgr, node, conn)
 }
 
 func (mgr *Manager) RunTaskOnNodes(nodes []kubekeyapi.HostCfg, task NodeTask, parallel bool) error {

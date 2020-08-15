@@ -18,7 +18,7 @@ package upgrade
 
 import (
 	"fmt"
-	"github.com/kubesphere/kubekey/pkg/cluster/preinstall"
+	"github.com/kubesphere/kubekey/pkg/cluster/kubernetes"
 	"github.com/kubesphere/kubekey/pkg/config"
 	"github.com/kubesphere/kubekey/pkg/kubesphere"
 	"github.com/kubesphere/kubekey/pkg/util"
@@ -30,7 +30,7 @@ import (
 	"path/filepath"
 )
 
-func UpgradeCluster(clusterCfgFile, k8sVersion, ksVersion string, logger *log.Logger, ksEnabled, verbose, skipPullImages bool) error {
+func UpgradeCluster(clusterCfgFile, k8sVersion, ksVersion string, logger *log.Logger, ksEnabled, verbose bool) error {
 	currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		return errors.Wrap(err, "Faild to get current dir")
@@ -44,17 +44,16 @@ func UpgradeCluster(clusterCfgFile, k8sVersion, ksVersion string, logger *log.Lo
 		return errors.Wrap(err, "Failed to download cluster config")
 	}
 
-	return Execute(executor.NewExecutor(&cfg.Spec, logger, verbose, true, skipPullImages))
+	return Execute(executor.NewExecutor(&cfg.Spec, logger, verbose, true))
 }
 
 func ExecTasks(mgr *manager.Manager) error {
 	scaleTasks := []manager.Task{
 		{Task: GetClusterInfo, ErrMsg: "Failed to get cluster info"},
-		{Task: GetCurrentVersions, ErrMsg: "Failed to get current version"},
-		{Task: preinstall.InitOS, ErrMsg: "Failed to download kube binaries"},
-		{Task: UpgradeKubeCluster, ErrMsg: "Failed to upgrade kube cluster"},
-		//{Task: network.DeployNetworkPlugin, ErrMsg: "Failed to deploy network plugin"},
-		{Task: SyncConfiguration, ErrMsg: "Failed to sync configuration"},
+		//{Task: preinstall.InitOS, ErrMsg: "Failed to download kube binaries"},
+		//{Task: preinstall.PrePullImages, ErrMsg: "Failed to pre-pull images"},
+		{Task: kubernetes.GetCurrentVersions, ErrMsg: "Failed to get current version"},
+		{Task: kubernetes.UpgradeKubeCluster, ErrMsg: "Failed to upgrade kube cluster"},
 		{Task: kubesphere.DeployKubeSphere, ErrMsg: "Failed to upgrade kubesphere"},
 	}
 

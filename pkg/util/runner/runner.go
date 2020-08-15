@@ -46,6 +46,8 @@ retriesLoop:
 			if i == 0 {
 				lastError = err
 				lastOutput = output
+			} else {
+				fmt.Printf("[%s %s] Retrying ...\n", r.Host.Name, r.Host.Address)
 			}
 			if retries != 0 {
 				time.Sleep(time.Second * 5)

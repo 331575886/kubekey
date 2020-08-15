@@ -24,7 +24,7 @@ import (
 	"text/template"
 )
 
-var calicoTemplOld = template.Must(template.New("calico").Parse(
+var calicoTempl = template.Must(template.New("kubeadmCfg").Parse(
 	dedent.Dedent(`---
 # Source: calico/templates/calico-config.yaml
 # This ConfigMap is used to configure a self-hosted Calico installation.
@@ -857,8 +857,8 @@ metadata:
 
     `)))
 
-func GenerateCalicoFilesOld(mgr *manager.Manager) (string, error) {
-	return util.Render(calicoTemplOld, util.Data{
+func GenerateCalicoFiles(mgr *manager.Manager) (string, error) {
+	return util.Render(calicoTempl, util.Data{
 		"KubePodsCIDR":           mgr.Cluster.Network.KubePodsCIDR,
 		"CalicoCniImage":         preinstall.GetImage(mgr, "calico-cni").ImageName(),
 		"CalicoNodeImage":        preinstall.GetImage(mgr, "calico-node").ImageName(),
