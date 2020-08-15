@@ -32,6 +32,9 @@ type Options struct {
 	Kubernetes     string
 	Kubesphere     bool
 	SkipCheck      bool
+	SkipPullImages bool
+	KsVersion      string
+	Registry       string
 }
 
 var (

@@ -35,8 +35,8 @@ spec:
       ipipMode: Always  # IPIP Mode to use for the IPv4 POOL created at start up. If set to a value other than Never, vxlanMode should be set to "Never". [Always | CrossSubnet | Never] [Default: Always]
       vxlanMode: Never  # VXLAN Mode to use for the IPv4 POOL created at start up. If set to a value other than Never, ipipMode should be set to "Never". [Always | CrossSubnet | Never] [Default: Never]
       vethMTU: 1440  # The maximum transmission unit (MTU) setting determines the largest packet size that can be transmitted through your network. [Default: 1440]
-    podNetworkCidr: 10.233.64.0/18
-    serviceNetworkCidr: 10.233.0.0/18
+    kubePodsCIDR: 10.233.64.0/18
+    kubeServiceCIDR: 10.233.0.0/18
   registry:
     registryMirrors: []
     insecureRegistries: []
@@ -101,6 +101,8 @@ spec:
   local_registry: ""
   persistence:
     storageClass: ""
+  authentication:
+    jwtSecret: ""
   etcd:
     monitoring: true        # Whether to install etcd monitoring dashboard
     endpointIps: 192.168.0.7,192.168.0.8,192.168.0.9  # etcd cluster endpointIps
@@ -112,6 +114,15 @@ spec:
     etcdVolumeSize: 20Gi  # etcd PVC size
     openldapVolumeSize: 2Gi   # openldap PVC size
     redisVolumSize: 2Gi # Redis PVC size
+    es:  # Storage backend for logging, tracing, events and auditing.
+      elasticsearchMasterReplicas: 1   # total number of master nodes, it's not allowed to use even number
+      elasticsearchDataReplicas: 1     # total number of data nodes
+      elasticsearchMasterVolumeSize: 4Gi   # Volume size of Elasticsearch master nodes
+      elasticsearchDataVolumeSize: 20Gi    # Volume size of Elasticsearch data nodes
+      logMaxAge: 7                     # Log retention time in built-in Elasticsearch, it is 7 days by default.
+      elkPrefix: logstash              # The string making up index names. The index name will be formatted as ks-<elk_prefix>-log
+      # externalElasticsearchUrl:
+      # externalElasticsearchPort:
   console:
     enableMultiLogin: false  # enable/disable multiple sing on, it allows an account can be used by different users at the same time.
     port: 30880
@@ -131,14 +142,9 @@ spec:
     enabled: false
   logging:                 # Whether to install KubeSphere logging system. Flexible logging functions are provided for log query, collection and management in a unified console. Additional log collectors can be added, such as Elasticsearch, Kafka and Fluentd.
     enabled: false
-    elasticsearchMasterReplicas: 1   # total number of master nodes, it's not allowed to use even number
-    elasticsearchDataReplicas: 1     # total number of data nodes
     logsidecarReplicas: 2
-    elasticsearchMasterVolumeSize: 4Gi   # Volume size of Elasticsearch master nodes
-    elasticsearchDataVolumeSize: 20Gi    # Volume size of Elasticsearch data nodes
-    logMaxAge: 7                     # Log retention time in built-in Elasticsearch, it is 7 days by default.
-    elkPrefix: logstash              # The string making up index names. The index name will be formatted as ks-<elk_prefix>-log
   metrics_server:                    # Whether to install metrics-server. IT enables HPA (Horizontal Pod Autoscaler).
+    enabled: true
   monitoring:                        #
     prometheusReplicas: 1            # Prometheus replicas are responsible for monitoring different segments of data source and provide high availability as well.
     prometheusMemoryRequest: 400Mi   # Prometheus request memory
@@ -154,5 +160,4 @@ spec:
     enabled: false
   servicemesh:         # Whether to install KubeSphere Service Mesh (Istio-based). It provides fine-grained traffic management, observability and tracing, and offer visualization for traffic topology
     enabled: false
-
 ```

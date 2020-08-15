@@ -22,7 +22,6 @@ import (
 	kubekeyapi "github.com/kubesphere/kubekey/pkg/apis/kubekey/v1alpha1"
 	"github.com/kubesphere/kubekey/pkg/cluster/kubernetes/tmpl"
 	"github.com/kubesphere/kubekey/pkg/util/manager"
-	"github.com/kubesphere/kubekey/pkg/util/ssh"
 	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
@@ -34,7 +33,7 @@ func InstallKubeBinaries(mgr *manager.Manager) error {
 	return mgr.RunTaskOnK8sNodes(installKubeBinaries, true)
 }
 
-func installKubeBinaries(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.Connection) error {
+func installKubeBinaries(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
 	if !strings.Contains(clusterStatus["clusterInfo"], node.Name) && !strings.Contains(clusterStatus["clusterInfo"], node.InternalAddress) {
 		if err := SyncKubeBinaries(mgr, node); err != nil {
 			return err
@@ -48,6 +47,13 @@ func installKubeBinaries(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.C
 }
 
 func SyncKubeBinaries(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
+
+	tmpDir := "/tmp/kubekey"
+	_, err := mgr.Runner.ExecuteCmd(fmt.Sprintf("sudo -E /bin/sh -c \"if [ -d %s ]; then rm -rf %s ;fi\" && mkdir -p %s", tmpDir, tmpDir, tmpDir), 1, false)
+	if err != nil {
+		return errors.Wrap(errors.WithStack(err), "Failed to create tmp dir")
+	}
+
 	currentDir, err1 := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err1 != nil {
 		return errors.Wrap(err1, "Failed to get current dir")

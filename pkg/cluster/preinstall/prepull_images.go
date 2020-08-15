@@ -5,17 +5,22 @@ import (
 	"github.com/kubesphere/kubekey/pkg/images"
 	"github.com/kubesphere/kubekey/pkg/util"
 	"github.com/kubesphere/kubekey/pkg/util/manager"
-	"github.com/kubesphere/kubekey/pkg/util/ssh"
 	"strings"
 )
 
 func PrePullImages(mgr *manager.Manager) error {
-	mgr.Logger.Infoln("Start to download images on all nodes")
 
-	return mgr.RunTaskOnAllNodes(PullImages, true)
+	if !mgr.SkipPullImages {
+		mgr.Logger.Infoln("Start to download images on all nodes")
+		if err := mgr.RunTaskOnAllNodes(PullImages, true); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func PullImages(mgr *manager.Manager, node *kubekeyapi.HostCfg, _ ssh.Connection) error {
+func PullImages(mgr *manager.Manager, node *kubekeyapi.HostCfg) error {
 	i := images.Images{}
 	i.Images = []images.Image{
 		GetImage(mgr, "etcd"),
@@ -63,6 +68,7 @@ func GetImage(mgr *manager.Manager, name string) images.Image {
 		"calico-cni":              {RepoAddr: mgr.Cluster.Registry.PrivateRegistry, Namespace: "calico", Repo: "cni", Tag: kubekeyapi.DefaultCalicoVersion, Group: kubekeyapi.K8s, Enable: strings.EqualFold(mgr.Cluster.Network.Plugin, "calico")},
 		"calico-node":             {RepoAddr: mgr.Cluster.Registry.PrivateRegistry, Namespace: "calico", Repo: "node", Tag: kubekeyapi.DefaultCalicoVersion, Group: kubekeyapi.K8s, Enable: strings.EqualFold(mgr.Cluster.Network.Plugin, "calico")},
 		"calico-flexvol":          {RepoAddr: mgr.Cluster.Registry.PrivateRegistry, Namespace: "calico", Repo: "pod2daemon-flexvol", Tag: kubekeyapi.DefaultCalicoVersion, Group: kubekeyapi.K8s, Enable: strings.EqualFold(mgr.Cluster.Network.Plugin, "calico")},
+		"calico-typha":            {RepoAddr: mgr.Cluster.Registry.PrivateRegistry, Namespace: "calico", Repo: "typha", Tag: kubekeyapi.DefaultCalicoVersion, Group: kubekeyapi.K8s, Enable: strings.EqualFold(mgr.Cluster.Network.Plugin, "calico") && len(mgr.K8sNodes) > 50},
 		"flannel":                 {RepoAddr: mgr.Cluster.Registry.PrivateRegistry, Namespace: "kubesphere", Repo: "flannel", Tag: kubekeyapi.DefaultFlannelVersion, Group: kubekeyapi.K8s, Enable: strings.EqualFold(mgr.Cluster.Network.Plugin, "flannel")},
 		// storage
 		"provisioner-localpv":    {RepoAddr: mgr.Cluster.Registry.PrivateRegistry, Namespace: "kubesphere", Repo: "provisioner-localpv", Tag: "1.10.0", Group: kubekeyapi.Worker, Enable: mgr.Cluster.Storage.LocalVolume.Enabled},

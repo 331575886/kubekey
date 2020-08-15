@@ -13,4 +13,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package upgrade
+package cmd
+
+import (
+	"github.com/spf13/cobra"
+)
+
+// createCmd represents the create command
+var deployCmd = &cobra.Command{
+	Use:   "deploy",
+	Short: "Deploy Software on the existing K8s",
+}
+
+func init() {
+	rootCmd.AddCommand(deployCmd)
+}

@@ -23,7 +23,6 @@ import (
 	"github.com/kubesphere/kubekey/pkg/config"
 	"github.com/kubesphere/kubekey/pkg/util/executor"
 	"github.com/kubesphere/kubekey/pkg/util/manager"
-	"github.com/kubesphere/kubekey/pkg/util/ssh"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -36,7 +35,7 @@ func ResetCluster(clusterCfgFile string, logger *log.Logger, verbose bool) error
 		return errors.Wrap(err, "Failed to download cluster config")
 	}
 
-	return Execute(executor.NewExecutor(&cfg.Spec, logger, verbose, false))
+	return Execute(executor.NewExecutor(&cfg.Spec, logger, verbose, false, true))
 }
 
 func Execute(executor *executor.Executor) error {
@@ -83,6 +82,7 @@ var clusterFiles = []string{
 	"/etc/ssl/etcd",
 	"/var/lib/etcd",
 	"/etc/etcd.env",
+	"/etc/kubernetes",
 	"/etc/systemd/system/etcd.service",
 	"/var/log/calico",
 	"/etc/cni",
@@ -92,6 +92,11 @@ var clusterFiles = []string{
 	"/run/calico",
 	"/run/flannel",
 	"/etc/flannel",
+	"/etc/systemd/system/kubelet.service.d",
+	"/usr/local/bin/kubelet",
+	"/usr/local/bin/kubeadm",
+	"/usr/local/bin/kubectl",
+	"/usr/bin/kubelet",
 }
 
 var cmdsList = []string{
@@ -103,7 +108,7 @@ var cmdsList = []string{
 	"ip link del nodelocaldns",
 }
 
-func resetKubeCluster(mgr *manager.Manager, _ *kubekeyapi.HostCfg, _ ssh.Connection) error {
+func resetKubeCluster(mgr *manager.Manager, _ *kubekeyapi.HostCfg) error {
 	_, _ = mgr.Runner.ExecuteCmd("sudo -E /bin/sh -c \"/usr/local/bin/kubeadm reset -f\"", 0, true)
 	fmt.Println(strings.Join(cmdsList, " && "))
 	_, _ = mgr.Runner.ExecuteCmd(fmt.Sprintf("sudo -E /bin/sh -c \"%s\"", strings.Join(cmdsList, " && ")), 0, true)

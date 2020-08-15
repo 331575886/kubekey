@@ -153,7 +153,7 @@ func GenerateClusterObjStr(opt *Options, storageNum int) (string, error) {
 
 func GenerateClusterObj(addons, k8sVersion, ksVersion, name, kubeconfig, clusterCfgPath string, ksEnabled, fromCluster bool) error {
 	if fromCluster {
-		err := GenerateConfigFromCluster(clusterCfgPath, kubeconfig, name, ksVersion, ksEnabled)
+		err := GenerateConfigFromCluster(clusterCfgPath, kubeconfig, name)
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,11 @@ func GenerateClusterObj(addons, k8sVersion, ksVersion, name, kubeconfig, cluster
 	} else {
 		opt.Name = "config-sample"
 	}
-	opt.KubeVersion = k8sVersion
+	if len(k8sVersion) == 0 {
+		opt.KubeVersion = kubekeyapi.DefaultKubeVersion
+	} else {
+		opt.KubeVersion = k8sVersion
+	}
 	opt.KubeSphereEnabled = ksEnabled
 	addonsList := strings.Split(addons, ",")
 	for index, addon := range addonsList {
